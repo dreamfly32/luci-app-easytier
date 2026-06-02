@@ -100,8 +100,79 @@ external_node:depends("etcmd", "etcmd")
 ]=]
 
 proxy_network = s:taboption("general", DynamicList, "proxy_network", translate("Subnet Proxy"),
-        translate("Export the local network to other peers in the VPN, allowing access to other devices in the current LAN (-n parameter)"))
+        translate("Export the local network to other peers in the VPN, allowing access to other devices in the current LAN (-n parameter)<br>"
+                .. "Supports two formats:<br>"
+                .. "1. Simple CIDR: 192.168.0.0/24<br>"
+                .. "2. Subnet mapping: 192.168.0.0/24->192.168.32.0/24"))
 proxy_network:depends("etcmd", "etcmd")
+-- Add validation function for proxy_network format
+proxy_network.validate = function(self, value, section)
+    if type(value) == "table" then
+        for _, entry in ipairs(value) do
+            if entry and entry ~= "" then
+                entry = tostring(entry):match("^%s*(.-)%s*$")
+                if entry ~= "" then
+                    -- Check if it's a mapping format (contains ->)
+                    if string.find(entry, "->") then
+                        -- Split by -> and validate both parts
+                        local parts = {}
+                        for part in string.gmatch(entry, "[^->]+") do
+                            table.insert(parts, part:match("^%s*(.-)%s*$"))
+                        end
+                        if #parts ~= 2 then
+                            return nil, translate("Invalid subnet mapping format") .. ": " .. entry .. 
+                                translate(" (expected: CIDR->CIDR)")
+                        end
+                        -- Validate both CIDR notations
+                        for _, cidr in ipairs(parts) do
+                            if not self:validate_cidr(cidr) then
+                                return nil, translate("Invalid CIDR format") .. ": " .. cidr
+                            end
+                        end
+                    else
+                        -- Validate simple CIDR format
+                        if not self:validate_cidr(entry) then
+                            return nil, translate("Invalid CIDR format") .. ": " .. entry
+                        end
+                    end
+                end
+            end
+        end
+    end
+    return value
+end
+
+-- Helper function to validate CIDR notation
+proxy_network.validate_cidr = function(self, cidr)
+    if not cidr or cidr == "" then
+        return false
+    end
+    
+    -- Check CIDR format: xxx.xxx.xxx.xxx/xx
+    local ip, prefix = string.match(cidr, "^([%d%.]+)/(%d+)$")
+    if not ip or not prefix then
+        return false
+    end
+    
+    prefix = tonumber(prefix)
+    if not prefix or prefix < 0 or prefix > 32 then
+        return false
+    end
+    
+    -- Validate IPv4 address
+    local octets = {}
+    for octet in string.gmatch(ip, "%d+") do
+        table.insert(octets, tonumber(octet))
+        if #octets > 4 then
+            return false
+        end
+        if tonumber(octet) > 255 then
+            return false
+        end
+    end
+    
+    return #octets == 4
+end
 
 mapped_listeners = s:taboption("privacy", DynamicList, "mapped_listeners", translate("Public Addresses of Specified Listeners"),
         translate("Manually specify the public IP address of this machine, so other nodes can connect to this node using "
