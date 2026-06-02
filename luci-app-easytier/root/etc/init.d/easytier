@@ -467,20 +467,10 @@ start_et() {
                 		if [ ! -z "$proxy_network" ] ; then
                   			if [[ "$(grep "list proxy_network" /etc/config/easytier | awk '{print $3}' | wc -l ) " -eq 1 ]]; then
                     				proxy_networks=$(echo "$proxy_network" | sed "s/'/\n/g" | tr -d " '")
-                    				# Add quotes if proxy_networks contains ->
-                    				if echo "$proxy_networks" | grep -q "->"; then
-                    					core_cmd="${core_cmd} -n '${proxy_networks}'"
-                    				else
-                    					core_cmd="${core_cmd} -n $proxy_networks"
-                    				fi
+                    				core_cmd="${core_cmd} -n $(shell_quote "$proxy_networks")"
                   			else
                     				for proxy_networks in $(cat /etc/config/easytier | grep 'list proxy_network'  | awk -F 'list proxy_network' '{print $2}' | sed "s/'/\n/g" | tr -d " ' "); do
-                    					# Add quotes if proxy_networks contains ->
-                    					if echo "$proxy_networks" | grep -q "->"; then
-                    						core_cmd="${core_cmd} -n '${proxy_networks}'"
-                    					else
-                    						core_cmd="${core_cmd} -n $proxy_networks"
-                    					fi
+                    					core_cmd="${core_cmd} -n $(shell_quote "$proxy_networks")"
                    				done
                    			fi
                 		fi
